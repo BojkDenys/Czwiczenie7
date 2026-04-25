@@ -1,0 +1,46 @@
+Build folders
+bin/
+obj/
+
+User-specific files
+*.user
+*.suo
+*.userprefs
+
+IDE folders
+.idea/
+.vs/
+.vscode/
+
+Rider
+*.sln.iml
+
+OS files
+.DS_Store
+Thumbs.db
+
+Generated files
+*.cache
+*.dll
+*.exe
+*.pdb
+
+.NET generated
+*.deps.json
+*.runtimeconfig.json
+*.nuget.g.props
+*.nuget.g.targets
+project.assets.json
+project.nuget.cache
+
+Test / coverage
+TestResults/
+coverage/
+*.coverage
+*.coveragexml
+.idea/
+*.DS_Store
+bin/
+obj/
+*.user
+*.suo
