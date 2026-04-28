@@ -1,4 +1,5 @@
 ﻿using czwiczenie7.DTOs;
+using czwiczenie7.Enums;
 using czwiczenie7.Services;
 using Microsoft.AspNetCore.Mvc;
 
@@ -29,9 +30,29 @@ public class AppointmentsController : ControllerBase
         var appointment = await _appointmentService.GetAppointmentById(idAppointment);
         if (appointment == null)
         {
-            return NotFound(new ErrorResponseDto());
+            return NotFound(new ErrorResponseDto("Appointment not found"));
         }
 
         return Ok(appointment);
+    }
+
+    [HttpPost]
+    public async Task<ActionResult<AppointmentDetailsDto>> CreateAppointment([FromBody] CreateAppointmentRequestDto dto)
+    {
+        var result = await _appointmentService.CreateAppointment(dto);
+        if (result.Status == ServiceResultStatus.BadRequest)
+        {
+            return BadRequest(new ErrorResponseDto(result.ErrorMessage));
+        }
+
+        if (result.Status == ServiceResultStatus.Conflict)
+        {
+            return Conflict(new ErrorResponseDto(result.ErrorMessage));
+        }
+
+        return CreatedAtAction(
+            nameof(GetAppointmentById),
+            new { idAppointment = result.Data!.IdAppointment },
+            result.Data);
     }
 }
