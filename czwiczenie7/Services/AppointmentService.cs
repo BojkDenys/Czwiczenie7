@@ -236,6 +236,30 @@ public class AppointmentService
 
     }
 
+    public async Task<ServiceResult<bool>> DeleteAppointment(int idAppointment)
+    {
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+        var currentAppointment = await GetCurrentAppointment(connection, idAppointment);
+        if (currentAppointment == null)
+        {
+            return ServiceResult<bool>.NotFound("Appointment not found");
+        }
+
+        if (currentAppointment.Status == "Completed")
+        {
+            return ServiceResult<bool>.Conflict("Appointment already completed");
+        }
+
+        await using var command = new SqlCommand("""
+                                                 DELETE FROM dbo.Appointments
+                                                 WHERE IdAppointment = @IdAppointment;
+                                                 """,connection);
+        command.Parameters.Add("@IdAppointment", SqlDbType.Int).Value = idAppointment;
+        await command.ExecuteNonQueryAsync();
+        return ServiceResult<bool>.Ok(true);
+    }
+
     private async Task<bool> PatientExists(SqlConnection connection, int patientId)
     {
         await using var command = new SqlCommand("""

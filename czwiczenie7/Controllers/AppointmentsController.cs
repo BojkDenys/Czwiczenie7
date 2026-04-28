@@ -79,4 +79,21 @@ public class AppointmentsController : ControllerBase
 
         return Ok(result.Data);
     }
+
+    [HttpDelete("{idAppointment:int}")]
+    public async Task<IActionResult> DeleteAppointment(int idAppointment)
+    {
+        var result = await _appointmentService.DeleteAppointment(idAppointment);
+        if (result.Status == ServiceResultStatus.Conflict)
+        {
+            return Conflict(new ErrorResponseDto(result.ErrorMessage));
+        }
+
+        if (result.Status == ServiceResultStatus.NotFound)
+        {
+            return NotFound(new ErrorResponseDto(result.ErrorMessage));
+        }
+
+        return NoContent();
+    } 
 }
