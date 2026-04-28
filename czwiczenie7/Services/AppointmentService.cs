@@ -159,6 +159,82 @@ public class AppointmentService
         return ServiceResult<AppointmentDetailsDto>.Ok(appointment);
 
     }
+    public async Task<ServiceResult<AppointmentDetailsDto>> UpdateAppointment(int idAppointment,
+        UpdateAppointmentRequestDto dto)
+    {
+        if (string.IsNullOrWhiteSpace(dto.Reason))
+        {
+            return ServiceResult<AppointmentDetailsDto>.BadRequest("Reason must be present");
+        }
+
+        if (dto.Reason.Length > 250)
+        {
+            return ServiceResult<AppointmentDetailsDto>.BadRequest("Reason can not be longer than 250");
+        }
+
+        var allowedStatuses = new[] { "Scheduled", "Completed", "Cancelled" };
+        if (!allowedStatuses.Contains(dto.Status))
+        {
+            return ServiceResult<AppointmentDetailsDto>.BadRequest("Invalid Status");
+        }
+        await using var connection = new SqlConnection(_connectionString);
+        await connection.OpenAsync();
+        var currentAppointment = await GetCurrentAppointment(connection, idAppointment);
+        if (currentAppointment == null)
+        {
+            return ServiceResult<AppointmentDetailsDto>.NotFound("Appointment not found");
+        }
+        if (!await PatientExists(connection,dto.IdPatient))
+        {
+            return ServiceResult<AppointmentDetailsDto>.BadRequest("Invalid patient");
+        }
+        if (!await DoctorExists(connection,dto.IdDoctor))
+        {
+            return ServiceResult<AppointmentDetailsDto>.BadRequest("Invalid doctor");
+        }
+        if (currentAppointment.Status == "Completed" &&
+            currentAppointment.AppointmentDate != dto.AppointmentDate)
+        {
+            return ServiceResult<AppointmentDetailsDto>.Conflict(
+                "appointment already completed");
+        }
+
+        if (dto.AppointmentDate <= DateTime.Now && dto.Status == "Scheduled")
+        {
+            return ServiceResult<AppointmentDetailsDto>.BadRequest(
+                "appointment  cannot be in the past.");
+        }
+
+
+        if (await DoctorNotFreeAtThisTime(connection,dto.IdDoctor,dto.AppointmentDate,idAppointment))
+        {
+            return ServiceResult<AppointmentDetailsDto>.Conflict("Doctor don't free at this time");
+        }
+
+        await using var command = new SqlCommand("""
+                                                 UPDATE dbo.Appointments
+                                                 SET
+                                                 IdPatient = @IdPatient, 
+                                                 IdDoctor = @IdDoctor, 
+                                                 AppointmentDate = @AppointmentDate, 
+                                                 Status = @Status, 
+                                                 Reason = @Reason, 
+                                                 InternalNotes = @InternalNotes 
+                                                 WHERE IdAppointment = @IdAppointment;
+                                                 """, connection);
+        command.Parameters.Add("@IdPatient", SqlDbType.Int).Value = dto.IdPatient;
+        command.Parameters.Add("@IdDoctor", SqlDbType.Int).Value = dto.IdDoctor;
+        command.Parameters.Add("@AppointmentDate", SqlDbType.DateTime2).Value = dto.AppointmentDate;
+        command.Parameters.Add("@Status", SqlDbType.NVarChar, 30).Value = dto.Status;
+        command.Parameters.Add("@Reason", SqlDbType.NVarChar, 250).Value = dto.Reason;
+        command.Parameters.Add("@InternalNotes", SqlDbType.NVarChar, 500).Value =
+            string.IsNullOrWhiteSpace(dto.InternalNotes) ? DBNull.Value : dto.InternalNotes;
+        command.Parameters.Add("@IdAppointment", SqlDbType.Int).Value = idAppointment;
+        await command.ExecuteNonQueryAsync();
+        var appointment = await GetAppointmentById(idAppointment);
+        return ServiceResult<AppointmentDetailsDto>.Ok(appointment);
+
+    }
 
     private async Task<bool> PatientExists(SqlConnection connection, int patientId)
     {
@@ -208,6 +284,28 @@ public class AppointmentService
         var result = (int)await command.ExecuteScalarAsync();
         return result > 0;
 
+    }
+
+    private async Task<CurrentAppointment?> GetCurrentAppointment(SqlConnection connection, int idAppointment)
+    {
+        await using var command = new SqlCommand("""
+                                                 SELECT IdAppointment, AppointmentDate,Status
+                                                 FROM dbo.Appointments
+                                                 WHERE IdAppointment = @IdAppointment;
+                                                 """, connection);
+        command.Parameters.Add("@IdAppointment", SqlDbType.Int).Value = idAppointment;
+        await using var reader = await command.ExecuteReaderAsync();
+        if (!await reader.ReadAsync())
+        {
+            return null;
+        }
+
+        return new CurrentAppointment
+        {
+            IdAppointment = reader.GetInt32(reader.GetOrdinal("IdAppointment")),
+            AppointmentDate = reader.GetDateTime(reader.GetOrdinal("AppointmentDate")),
+            Status = reader.GetString(reader.GetOrdinal("Status"))
+        };
     }
     
 }

@@ -55,4 +55,28 @@ public class AppointmentsController : ControllerBase
             new { idAppointment = result.Data!.IdAppointment },
             result.Data);
     }
+
+    [HttpPut("{idAppointment:int}")]
+    public async Task<ActionResult<AppointmentDetailsDto>> UpdateAppointment(
+        int idAppointment,
+        [FromBody] UpdateAppointmentRequestDto dto)
+    {
+        var result = await _appointmentService.UpdateAppointment(idAppointment, dto);
+        if (result.Status == ServiceResultStatus.BadRequest)
+        {
+            return BadRequest(new ErrorResponseDto(result.ErrorMessage));
+        }
+
+        if (result.Status == ServiceResultStatus.Conflict)
+        {
+            return Conflict(new ErrorResponseDto(result.ErrorMessage));
+        }
+
+        if (result.Status == ServiceResultStatus.NotFound)
+        {
+            return NotFound(new ErrorResponseDto(result.ErrorMessage));
+        }
+
+        return Ok(result.Data);
+    }
 }
